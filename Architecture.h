@@ -1,14 +1,15 @@
 #pragma once
 
+#include "Module.h"
 #include <string>
 #include <vector>
 
 class Architecture {
 private:
     std::string label_;
-    std::vector<std::pair<int, int>> edges;
-    std::vector<std::vector<int>> forward_edges_;
-    std::vector<std::vector<int>> backward_edges_;
+    std::vector<std::pair<int, int> > edges;
+    std::vector<std::vector<int> > forward_edges_;
+    std::vector<std::vector<int> > backward_edges_;
     std::vector<Module> modules_;
     int width_limit_;
     int height_limit_;

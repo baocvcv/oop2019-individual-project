@@ -7,6 +7,8 @@
 
 using namespace std;
 
+#define DEBUG(x) cout<<x<<' ';
+
 Architecture::Architecture() {
     sink_num_ = 0;
     dispenser_num_ = 0;
@@ -14,10 +16,15 @@ Architecture::Architecture() {
 
 vector<string> split(string s, char c){
     vector<string> res;
-    while(s.length() > 0){
-        res.push_back(s.substr(0, s.find(c)));
-        s = s.substr(s.find(c));
+    while(s.find(c) != string::npos){
+        string tmp = s.substr(0, s.find(c));
+        tmp = tmp.substr(tmp.find_first_not_of(' '), tmp.find_last_not_of(' ')-tmp.find_first_not_of(' ')+1);
+        res.push_back(tmp);
+        s = s.substr(s.find(c)+1);
     }
+    string tmp = s;
+    tmp = tmp.substr(tmp.find_first_not_of(' '), tmp.find_last_not_of(' ')-tmp.find_first_not_of(' ')+1);
+    res.push_back(tmp);
     return res;
 }
 
@@ -35,11 +42,6 @@ void Architecture::build_from_file(const std::string &filename){
     modules_.clear();
 
     ifstream in_file(filename);
-    string line;
-    getline(in_file, line);
-    // get the name of the file
-    label_ = line.substr(line.find('('), line.find(')')-line.find('(')-1); // TODO: test this
-
     // process line by line
     while(!in_file.eof()){
         string line;
@@ -49,12 +51,14 @@ void Architecture::build_from_file(const std::string &filename){
         }
 
         string type = line.substr(0, line.find(' '));
-        auto params = split(line.substr(line.find('('), line.find(')') - line.find('(')-1), ','); // TODO: test this
-        if(params.size() < 2){
+        auto params = split(line.substr(line.find('(')+1, line.find(')') - line.find('(')-1), ','); // TODO: test this
+        if(params.size() < 1){
             cout << "Error reading input file: " << filename << endl;
         }
 
-        if(type == "EDGE"){
+        if(type == "DAGNAME"){
+            label_ = params[0];
+        }else if(type == "EDGE"){
             int u = stoi(params[0]);
             int v = stoi(params[1]);
             edges.push_back(make_pair(u-1, v-1));
@@ -72,7 +76,7 @@ void Architecture::build_from_file(const std::string &filename){
                 m.fluid_type_ = params[2];
                 m.volume_ = stoi(params[3]);
                 m.label_ = params[4];
-            }else if(type_module == "OUPTUT"){
+            }else if(type_module == "OUTPUT"){
                 m.type_ = SINK;
                 m.sink_name_ = params[2];
                 m.label_ = params[3];
@@ -92,11 +96,17 @@ void Architecture::build_from_file(const std::string &filename){
             width_limit_ = stoi(params[0]);
             height_limit_ = stoi(params[1]);
         }else if(type == "MOD"){
-            int id = stoi(params[0]) - 1;
-            switch(modules_[id].type_){
+            string label = params[0];
+            vector<Module>::iterator it;
+            for(it = modules_.begin(); it != modules_.end(); it++){
+                if(it->label_ == label){
+                    break;
+                }
+            }
+            switch(it->type_){
                 case MIXER:
-                    modules_[id].w = stoi(params[1]);
-                    modules_[id].h = stoi(params[2]);
+                    it->w = stoi(params[1]);
+                    it->h = stoi(params[2]);
                     break;
             }
         }
@@ -116,7 +126,7 @@ void Architecture::print_to_graph(const string &filename){
     ofstream out_file(filename);
     out_file << "graph \"" << label_ << "\" {\n";
     for(auto m: modules_){
-        out_file << m.id_ << " [label=\"" << m.label_ << m.id_ << "\"]\n";
+        out_file << m.id_ << " [label=\"" << m.label_ << "\"]\n";
     }
     for(auto e: edges){
         out_file << e.first << " -- " << e.second << endl;

@@ -32,7 +32,7 @@ struct Module {
 
     std::string to_string() {
         char buf[100];
-        sprintf(buf, "%s %s", label_, id_);
+        sprintf(buf, "%s %d", label_.c_str(), id_);
         return std::string(buf);
     }
-}
+};
