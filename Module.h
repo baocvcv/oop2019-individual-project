@@ -4,33 +4,31 @@
 #include <sstream>
 #include <cstdio>
 
+enum Type {
+    NONE,
+    DISPENSER,
+    MIXER,
+    DETECTOR,
+    SINK
+};
 struct Module {
-    enum Type {
-        NONE,
-        DISPENSER,
-        MIXER,
-        DETECTOR,
-        SINK
-    };
-
     int id_;
     Type type_;
     std::string label_;
-    int time;
+    int time_;
 
     // for dispenser
     std::string fluid_type_;
     int volume_;
 
     // for mixer
-    int time_;
     int drops_;
     int w, h;
 
     // for sink
-    std::string ink_name_;
+    std::string sink_name_;
 
-    Module(int id, std::string label, int type = NONE) : id_(id), label_(label), type_(type) {}
+    //Module(int id, std::string label, int type = NONE) : id_(id), label_(label), type_(type) {}
 
     std::string to_string() {
         char buf[100];
