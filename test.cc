@@ -4,12 +4,6 @@
 using namespace z3;
 using namespace std;
 
-void func(context &c){
-    expr x = c.bool_const("x");
-    expr y = c.bool_const("y");
-    
-    return;
-};
 
 int main(){
     context c;
@@ -17,7 +11,6 @@ int main(){
     expr x = c.bool_const("x");
     expr y = c.bool_const("y");
     
-    func(c);
     solver s(c);
     s.add(x&&y);
     cout << s << endl;
