@@ -1,5 +1,6 @@
 #pragma once
 
+#include "z3++.h"
 #include <vector>
 #include <string>
 
@@ -10,14 +11,7 @@
  */
 
 class GridState {
-    struct Cell {
-        int id_;
-        bool is_occupied_;
-
-        Cell(int id, bool is_occupied=false): id_(id), is_occupied_(is_occupied) {}
-    }
-
-    Cell **grid_;
+    std::vector<z3::expr> **grid_;
     int w_;
     int h_;
 
