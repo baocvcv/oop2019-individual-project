@@ -5,7 +5,7 @@
 #include <vector>
 
 class Architecture {
-private:
+public:
     std::string label_;
     std::vector<std::pair<int, int> > edges;
     std::vector<std::vector<int> > forward_edges_;
@@ -15,10 +15,12 @@ private:
     int height_limit_;
     int time_limit_;
 
-    int sink_num_;
-    int dispenser_num_;
+    int num_sink_;
+    int num_dispenser_;
+    int num_mixer_;
+    int num_detector_;
 
-public:
+    // read in the file and subtract id by 1 to make it start from 0
     Architecture();
     void build_from_file(const std::string &filename);
     void print_to_graph(const std::string &filename);

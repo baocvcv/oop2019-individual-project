@@ -10,8 +10,10 @@ using namespace std;
 #define DEBUG(x) cout<<x<<' ';
 
 Architecture::Architecture() {
-    sink_num_ = 0;
-    dispenser_num_ = 0;
+    num_sink_ = 0;
+    num_dispenser_ = 0;
+    num_mixer_ = 0;
+    num_detector_ = 0;
 }
 
 vector<string> split(string s, char c){
@@ -30,7 +32,7 @@ vector<string> split(string s, char c){
 
 void Architecture::build_from_file(const std::string &filename){
     // erase previous data
-    sink_num_ = dispenser_num_ = 0;
+    num_sink_ = num_dispenser_ = 0;
     for(auto edges: forward_edges_){
         edges.clear();
     }
@@ -71,21 +73,24 @@ void Architecture::build_from_file(const std::string &filename){
                 m.drops_ = stoi(params[2]);
                 m.time_ = stoi(params[3]);
                 m.label_ = params[4];
+                num_mixer_++;
             }else if(type_module == "DISPENSE"){
                 m.type_ = DISPENSER;
                 m.fluid_type_ = params[2];
                 m.volume_ = stoi(params[3]);
                 m.label_ = params[4];
+                num_dispenser_++;
             }else if(type_module == "OUTPUT"){
                 m.type_ = SINK;
                 m.sink_name_ = params[2];
                 m.label_ = params[3];
-                sink_num_++;
+                num_sink_++;
             }else if(type_module == "DETECT"){
                 m.type_ = DETECTOR;
                 m.drops_ = stoi(params[2]);
                 m.time_ = stoi(params[3]);
                 m.label_ = stoi(params[4]);
+                num_detector_++;
             }else{
                 cout << "Module type not yet supported!" << endl;
             }
@@ -104,6 +109,12 @@ void Architecture::build_from_file(const std::string &filename){
                 }
             }
             switch(it->type_){
+                case NONE:
+                    break;
+                case SINK:
+                case DISPENSER:
+                    it->desired_amount_ = stoi(params[1]);
+                    break;
                 case MIXER:
                     it->w = stoi(params[1]);
                     it->h = stoi(params[2]);

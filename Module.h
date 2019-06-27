@@ -6,16 +6,19 @@
 
 enum Type {
     NONE,
+    SINK,
     DISPENSER,
     MIXER,
-    DETECTOR,
-    SINK
+    DETECTOR
 };
+
 struct Module {
     int id_;
     Type type_;
     std::string label_;
+
     int time_;
+    int desired_amount_;
 
     // for dispenser
     std::string fluid_type_;
