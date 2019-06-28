@@ -119,6 +119,8 @@ void Architecture::build_from_file(const std::string &filename){
                     it->w = stoi(params[1]);
                     it->h = stoi(params[2]);
                     break;
+                case DETECTOR:
+                    break;
             }
         }
     }

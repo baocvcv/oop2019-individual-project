@@ -1,6 +1,7 @@
 // DAG Specification for Tiny
+// label (param1, param2, param3, ...)
 DAGNAME (Tiny Dag)
-NODE (1, DISPENSE, tris-hcl, 10, DIS1)
+NODE (1, DISPENSE, tris-hcl, 10, DIS1) // (id, module_type, fluid_type, volume, label)
 EDGE (1, 4)
 NODE (2, DISPENSE, kcl, 10, DIS2)
 EDGE (2, 4)

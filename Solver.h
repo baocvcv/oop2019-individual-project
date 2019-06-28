@@ -32,6 +32,7 @@ class Solver {
     int height_cur_;
     int perimeter_cur_; // = (width_cur_ + height_cur_) * 2
     int time_cur_;
+    z3::check_result result_;
 
     const Architecture& arch_;
     z3::context& ctx_;
@@ -42,6 +43,7 @@ class Solver {
     void add_placement_constraints();
     void add_movement_constraints();
     void add_operations();
+    void add_objectives(); 
     void add_fluidic_constraints();
 
     bool is_point_inbound(int x, int y) { return (x >= 0) && (x < width_cur_) && (y >= 0) && (y < height_cur_); }
@@ -50,9 +52,13 @@ public:
     Solver(const Architecture& arch, z3::context& c);
 
     bool solve();
+    bool solve(int width, int height, int time);
 
     z3::optimize& get_solver() { return solver_; }
     int get_no_of_actions() { return no_of_actions_; }
-    void print(const z3::model& m);
 
+    void print_solver() { std::cout << solver_ << std::endl; }
+    void print_solution();
+    void save_solver(std::string filename);
+    void save_solution(std::string filename);
 };
