@@ -113,12 +113,13 @@ void Solver::init(int width, int height, int time){
             c_[t][w].resize(height);
             for(int h = 0; h < height; h++){
                 // see definition of id
-                c_[t][w][h].resize(no_of_modules*2);
+                //c_[t][w][h].resize(no_of_modules*2);
                 for(int id = 0; id < no_of_modules; id++){
                     char name[50];
                     // for modules
                     sprintf(name, "c^%d_(%d,%d,%d)", t, w, h, id); // c^t_(x,y,id)
-                    c_[t][w][h][id] = ctx_.bool_const(name);
+                    //c_[t][w][h][i] = ctx_.bool_const(name);
+                    c_[t][w][h].push_back(ctx_.bool_const(name));
 
                     expr e = ite(c_[t][w][h][id], one, zero);
                     counter.push_back(e);
@@ -128,7 +129,8 @@ void Solver::init(int width, int height, int time){
                     char name[50];
                     // for droplets
                     sprintf(name, "c^%d_(%d,%d,%d)", t, w, h, i + no_of_modules); // c^t_(x,y,id)
-                    c_[t][w][h][i + no_of_modules] = ctx_.bool_const(name);
+                    c_[t][w][h].push_back(ctx_.bool_const(name));
+                    //c_[t][w][h][i + no_of_modules] = ctx_.bool_const(name);
 
                     expr e = ite(c_[t][w][h][no_of_modules + i], one, zero);
                     counter.push_back(e);
@@ -140,7 +142,7 @@ void Solver::init(int width, int height, int time){
     for(int w = 0; w < width; w++){
         for(int h = 0; h < height; h++){
             for(int i = 0; i < no_of_modules*2; i++){
-                c_[0][w][h][i] = ctx_.bool_val(false);
+                c_[0][w][h].push_back(ctx_.bool_val(false));
             }
         }
     }
@@ -148,19 +150,22 @@ void Solver::init(int width, int height, int time){
     // detecting^t_(l)
     detecting_.resize(time+1);
     for(int t = 1; t <= time; t++){
-        detecting_[t].resize(no_of_modules);
+        //detecting_[t].resize(no_of_modules);
         for(int i = 0; i < no_of_modules; i++){
             char name[50];
             sprintf(name, "detecting^%d_(%d)", t, i);
-            detecting_[t][i] = ctx_.bool_const(name);
+            //detecting_[t][i] = ctx_.bool_const(name);
+            detecting_[t].push_back(ctx_.bool_const(name));
 
             expr e = ite(detecting_[t][i], one, zero);
             counter.push_back(e);
         } 
     }
+    detecting_[0].resize(no_of_modules, ctx_.bool_val(false));
+    /* 
     for(int i = 0; i < no_of_modules; i++){
-        detecting_[0][i] = ctx_.bool_val(false);
-    }
+        detecting_[0].push_back(ctx_.bool_val(false));
+    }*/
 
     // add optimizing condition to solver to reduce total number of steps
     no_of_actions_ = ctx_.int_const("no_of_actions");
@@ -172,11 +177,11 @@ void Solver::init(int width, int height, int time){
     for(int w = 0; w < width; w++){
         detector_[w].resize(height);
         for(int h = 0; h < height; h++){
-            detector_[w][h].resize(no_of_modules);
+            //detector_[w][h].resize(no_of_modules);
             for(int l = 0; l < no_of_modules; l++){
                 char name[50];
                 sprintf(name, "detector_(%d,%d,%d)", w, h, l);
-                detector_[w][h][l] = ctx_.bool_const(name);
+                detector_[w][h].push_back(ctx_.bool_const(name));
             }
         }
     }
@@ -184,22 +189,24 @@ void Solver::init(int width, int height, int time){
     // dispenser_(p,l)
     dispenser_.resize(perimeter_cur_);
     for(int p = 0; p < perimeter_cur_; p++){
-        dispenser_[p].resize(no_of_modules);
+        //dispenser_[p].resize(no_of_modules);
         for(int l = 0; l < no_of_modules; l++){
             char name[50];
             sprintf(name, "dispenser_(%d,%d)", p, l);
-            dispenser_[p][l] = ctx_.bool_const(name);
+            dispenser_[p].push_back(ctx_.bool_const(name));
         }
     }
 
     // sink_(p)
-    sink_.resize(perimeter_cur_);
+    //sink_.resize(perimeter_cur_);
     for(int p = 0; p < perimeter_cur_; p++){
         char name[50];
         sprintf(name, "sink_(%d)", p);
-        sink_[p] = ctx_.bool_const(name);
+        //sink_[p] = ctx_.bool_const(name);
+        sink_.push_back(ctx_.bool_const(name));
     }
 
+    print_solver(); // TODO: used for debug
 }
 
 void Solver::add_consistency_constraints(){

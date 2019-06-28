@@ -10,7 +10,7 @@ using namespace z3;
 int main(int argc, char** argv){
     string filename;
     if(argc <= 1){
-        filename = "test.txt";
+        filename = "testcase/test1.txt";
     }else{
         filename = argv[1]; 
     }

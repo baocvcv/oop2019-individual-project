@@ -9,6 +9,12 @@ main: main.o Architecture.o Solver.o
 %.o: %.c*
 	$(CC) $(CCOBJFLAG) -o $@ $< 
 
+debug: main_dbg.o Architecture_dbg.o Solver_dbg.o 
+	$(CC) $(CCFLAG) $(LIBFLAG) -g -o $@ $^
+
+%_dbg.o: %.c*
+	$(CC) $(CCOBJFLAG) -g -o $@ $< 
+
 test: test.o
 	$(CC) $(CCFLAG) $(LIBFLAG) -o $@ $^
 
@@ -16,3 +22,5 @@ test: test.o
 clean:
 	rm *.o
 	rm main
+	rm test
+	rm debug
