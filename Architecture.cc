@@ -89,7 +89,7 @@ void Architecture::build_from_file(const std::string &filename){
                 m.type_ = DETECTOR;
                 m.drops_ = stoi(params[2]);
                 m.time_ = stoi(params[3]);
-                m.label_ = stoi(params[4]);
+                m.label_ = params[4];
                 num_detector_++;
             }else{
                 cout << "Module type not yet supported!" << endl;

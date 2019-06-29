@@ -4,13 +4,17 @@
 #include "Architecture.h"
 #include <vector>
 #include <string>
+#include <fstream>
+#include <iostream>
 
 class Solver {
-    // numbering of ids: 
-    //   [0, No. of modules) is allocated to modules (mixing, detecting...)
-    //   [No. of modules, No. of modules * 2] is allocated to droplets (each operation could produce at most one droplet)
     // c^t_(x,y,id)
+    // c_ used for droplets only
+    // no of droplets = no of edges
+    // droplet id = edge id
     std::vector<std::vector<std::vector<std::vector<z3::expr>>>> c_;
+    // mixing^t_(x,y,i)
+    std::vector<std::vector<std::vector<std::vector<z3::expr>>>> mixing_;
     // dectector_(x,y,l)
     std::vector<std::vector<std::vector<z3::expr>>> detector_;
     // detecting^t_(i)
@@ -27,18 +31,21 @@ class Solver {
     int width_limit_;
     int height_limit_;
     int time_limit_;
+    int no_of_modules_;
+    int no_of_edges_;
 
     int width_cur_;
     int height_cur_;
     int perimeter_cur_; // = (width_cur_ + height_cur_) * 2
     int time_cur_;
     z3::check_result result_;
+    z3::model model_;
 
     const Architecture& arch_;
     z3::context& ctx_;
 
     void init(int width, int height, int time);
-
+    void add_constraints();
     void add_consistency_constraints();
     void add_placement_constraints();
     void add_movement_constraints();
@@ -57,8 +64,20 @@ public:
     z3::optimize& get_solver() { return solver_; }
     int get_no_of_actions() { return no_of_actions_; }
 
-    void print_solver() { std::cout << solver_ << std::endl; }
-    void print_solution();
+    void print_solver(std::ostream& out = std::cout); 
+    void print_solution(std::ostream& out = std::cout);
     void save_solver(std::string filename);
     void save_solution(std::string filename);
+};
+
+inline void Solver::print_solver(std::ostream& out){
+    out << solver_ << std::endl;
+};
+
+inline void Solver::save_solver(std::string filename){
+    std::ofstream out(filename);
+    if(out.is_open()){
+        print_solver(out);
+    }
+    out.close();
 };

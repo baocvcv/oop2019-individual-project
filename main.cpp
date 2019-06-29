@@ -23,8 +23,11 @@ int main(int argc, char** argv){
 
     context c;
     Solver solver(g, c);
-    solver.solve(2,2,3);
-    solver.print_solver();
+    //solver.solve();
+    solver.solve(4,4,6);
+    // solver.solve(3,3,3);
+    solver.print_solution();
+    solver.save_solver("testcase/solver.txt");
 
     return 0;
 }

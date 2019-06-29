@@ -3,6 +3,7 @@
 #include "Module.h"
 #include <string>
 #include <vector>
+#include <map>
 
 class Architecture {
 public:
