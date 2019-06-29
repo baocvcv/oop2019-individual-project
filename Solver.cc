@@ -431,7 +431,7 @@ void Solver::add_movement_constraints(){
                     // c) result of a mixing op
                     // (x,y) occupied by mixer at (t-1) &&
                     // neighboring cells not occupied by droplet i
-                    expr_vector v3_tmp(ctx_);
+                    /* expr_vector v3_tmp(ctx_);
                     for(int k = 0; k < 5; k++){
                         int x_new = x + dx[k];
                         int y_new = y + dy[k];
@@ -445,7 +445,9 @@ void Solver::add_movement_constraints(){
                         e3_tmp = mixing_[t-1][x][y][id] && !mk_or(v3_tmp);
                     }else{
                         e3_tmp = ctx_.bool_val(false);
-                    }
+                    } */
+                    expr e3_tmp = ctx_.bool_val(false);
+                    
 
                     // d) result of a detecting op (because id is changed)
                     // TODO: chekc if this is correct
@@ -496,14 +498,14 @@ void Solver::add_operations(){
                     for(int y = 0; y < height_cur_; y++){
                         int w = module.w;
                         int h = module.h;
-                        for(int k = 0; k < w * h; k++){
+                        for(int k = 0; k < w*h; k++){ // TODO: change backc
                             expr condition1 = c_[t][x][y][id_after_mix]; // output is present
                             expr_vector condition2_vec(ctx_); // droplet_i is not present at time t-1
                             for(int l = 0; l < 5; l++){
                                 int x_new = x + dx[l];
                                 int y_new = y + dy[l];
                                 if(is_point_inbound(x_new, y_new)){
-                                    condition2_vec.push_back(c_[t-1][x_new][y_new][id_after_mix]);
+                                    condition2_vec.push_back(!c_[t-1][x_new][y_new][id_after_mix]);
                                 }
                             } 
                             expr condition2 = mk_and(condition2_vec); 
@@ -532,19 +534,16 @@ void Solver::add_operations(){
 
                                 // input-droplet disappear after start of mixing operation
                                 expr_vector b_vec(ctx_);
-                                for(int k = 0; k < 5; k++){
-                                    int x_new = x + dx[k];
-                                    int y_new = y + dy[k];
-                                    if(is_point_inbound(x_new, y_new)){
+                                for(int x_new = 0; x_new < width_cur_; x_new++){
+                                    for(int y_new = 0; y_new < height_cur_; y_new++){
                                         b_vec.push_back(c_[t-d][x_new][y_new][id_input]);
                                     }
                                 }
-                                expr b = mk_and(b_vec);
-
+                                expr b = mk_or(b_vec);
                                 result1_vec.push_back(a && !b);
                             }
 
-                            // one of the subgrids is occupied
+                            // a subgrid is occupied
                             expr_vector c_vec(ctx_);
                             // Here I allow the output droplet to be anywhere of the mixer
                             // TODO: need to check if it is correct
