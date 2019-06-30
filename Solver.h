@@ -52,6 +52,7 @@ class Solver {
     void add_operations();
     void add_objectives(); 
     void add_fluidic_constraints();
+    void add_movement();
 
     bool is_point_inbound(int x, int y) { return (x >= 0) && (x < width_cur_) && (y >= 0) && (y < height_cur_); }
 

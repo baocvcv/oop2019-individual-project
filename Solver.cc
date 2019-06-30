@@ -125,7 +125,7 @@ void Solver::print_solution(ostream& out){
                 bool flag = false;
                 for(auto module: arch_.modules_){
                     if(module.type_ == DETECTOR){
-                        if(eq(model_.eval(detector_[x][y][module.id_]) && model_.eval(detecting_[t][module.id_]), TRUE)){
+                        if(eq(model_.eval(detector_[x][y][module.id_]), TRUE) && eq(model_.eval(detecting_[t][module.id_]), TRUE)){
                             out << "d ";
                             flag = true;
                             break;
@@ -282,17 +282,19 @@ void Solver::init(int width, int height, int time){
 }
 
 void Solver::add_consistency_constraints(){
-    expr_vector constraint_vec(ctx_);
+    // expr_vector constraint_vec(ctx_);
 
     // a cell may not be occupied by more than one droplet or mixer i per time step
     for(int t = 1; t <= time_cur_; t++){
         for(int x = 0; x < width_cur_; x++){
             for(int y = 0; y < height_cur_; y++){
                 expr_vector v_tmp(ctx_);
-                // mixer
+                // mixer or detector
                 for(auto module: arch_.modules_){
                     if(module.type_ == MIXER){
                         v_tmp.push_back(mixing_[t][x][y][module.id_]);
+                    }else if(module.type_ == DETECTOR){
+                        v_tmp.push_back(detecting_[t][module.id_]);
                     }
                 }
 
@@ -300,14 +302,14 @@ void Solver::add_consistency_constraints(){
                 for(int i = 0; i < no_of_edges_; i++){
                     v_tmp.push_back(c_[t][x][y][i]);
                 }
-                constraint_vec.push_back(atmost(v_tmp, 1));
+                solver_.add(atmost(v_tmp, 1));
             }
         }
     }
-    solver_.add(mk_and(constraint_vec));
+    // solver_.add(mk_and(constraint_vec));
 
     // each droplet i may occur in at most one cell per time step
-    constraint_vec.resize(0);
+    // constraint_vec.resize(0);
     for(int i = 0; i < no_of_edges_; i++){
         for(int t = 1; t <= time_cur_; t++){
             expr_vector v_tmp(ctx_);
@@ -316,13 +318,13 @@ void Solver::add_consistency_constraints(){
                     v_tmp.push_back(c_[t][x][y][i]);
                 }
             }
-            constraint_vec.push_back(atmost(v_tmp, 1));
+            solver_.add(atmost(v_tmp, 1));
         }
     }
-    solver_.add(mk_and(constraint_vec));
+    // solver_.add(mk_and(constraint_vec));
 
     // in each position p outside of the grid, there may be at most one dispenser (this applies for all types l) or sink
-    constraint_vec.resize(0);
+    // constraint_vec.resize(0);
     for(int p = 0; p < perimeter_cur_; p++){
         expr_vector v_tmp(ctx_);
         v_tmp.push_back(sink_[p]);
@@ -331,13 +333,13 @@ void Solver::add_consistency_constraints(){
                 v_tmp.push_back(dispenser_[p][module.id_]);
             }
         }
-        constraint_vec.push_back(atmost(v_tmp, 1));
+        solver_.add(atmost(v_tmp, 1));
     }
 
-    solver_.add(mk_and(constraint_vec));
+    // solver_.add(mk_and(constraint_vec));
 
     // each cell may be occupied by atmost one detector
-    constraint_vec.resize(0);
+    // constraint_vec.resize(0);
     for(int x = 0; x < width_cur_; x++){
         for(int y = 0; y < height_cur_; y++){
             expr_vector v_tmp(ctx_);
@@ -347,11 +349,12 @@ void Solver::add_consistency_constraints(){
                 }
             }
             if(!v_tmp.empty()){
-                constraint_vec.push_back(atmost(v_tmp, 1));
+                // constraint_vec.push_back(atmost(v_tmp, 1));
+                solver_.add(atmost(v_tmp, 1));
             }
         }
     }
-    solver_.add(mk_and(constraint_vec));
+    // solver_.add(mk_and(constraint_vec));
 }
 
 void Solver::add_placement_constraints(){
@@ -367,29 +370,205 @@ void Solver::add_placement_constraints(){
                     v_tmp.push_back(detector_[x][y][module.id_]);
                 }
             }
-            constraint_vec.push_back(EQ(v_tmp, 1)); 
+            // constraint_vec.push_back(EQ(v_tmp, 1)); 
+            solver_.add(atleast(v_tmp, 1));
+            solver_.add(atmost(v_tmp, 1));
         }
     }
-    solver_.add(mk_and(constraint_vec));
+    // solver_.add(mk_and(constraint_vec));
 
     // dispensers and sinks, desired amount of every type of dispensers and sinks are placed
-    constraint_vec.resize(0);
+    // constraint_vec.resize(0);
     for(auto module: arch_.modules_){
         if(module.type_ == DISPENSER){
             expr_vector v_tmp(ctx_);
             for(int p = 0; p < perimeter_cur_; p++){
                 v_tmp.push_back(dispenser_[p][module.id_]);
             }
-            constraint_vec.push_back(EQ(v_tmp, module.desired_amount_));
+            // constraint_vec.push_back(EQ(v_tmp, module.desired_amount_));
+            solver_.add(atleast(v_tmp, module.desired_amount_));
+            solver_.add(atmost(v_tmp, module.desired_amount_));
         }else if(module.type_ == SINK){
             expr_vector v_tmp(ctx_);
             for(int p = 0; p < perimeter_cur_; p++){
                 v_tmp.push_back(sink_[p]);
             }
-            constraint_vec.push_back(EQ(v_tmp, module.desired_amount_));
+            // constraint_vec.push_back(EQ(v_tmp, module.desired_amount_));
+            solver_.add(atleast(v_tmp, module.desired_amount_));
+            solver_.add(atmost(v_tmp, module.desired_amount_));
         }
     }
-    solver_.add(mk_and(constraint_vec));
+    // solver_.add(mk_and(constraint_vec));
+}
+
+void Solver::add_movement(){
+    for(int i = 0; i < no_of_edges_; i++){
+        for(int x = 0; x < width_cur_; x++){
+            for(int y = 0; y < height_cur_; y++){
+                for(int t = 1; t <= time_cur_; t++){
+                    expr_vector vec(ctx_);
+                    // move
+                    for(int k = 0; k < 5; k++){
+                        int xx = x + dx[k];
+                        int yy = y + dy[k];
+                        if(is_point_inbound(xx, yy)){
+                            vec.push_back(c_[t-1][xx][yy][i]);
+                        }
+                    }
+
+                    // from dispenser
+                    int id = arch_.edges[i].first;
+                    if(arch_.modules_[id].type_ == DISPENSER){ // if the dispenser is of the same type
+                        if(x == 0){ // (x,y) on left edge
+                            vec.push_back(dispenser_[perimeter_cur_ - 1 - y][id]);
+                        }
+                        if(x == width_cur_-1){ // right edge
+                            vec.push_back(dispenser_[width_cur_ - 1 + y][id]);
+                        }
+                        if(y == 0){ // top edge
+                            vec.push_back(dispenser_[x][id]);
+                        }
+                        if(y == height_cur_-1){ // bottom edge
+                            vec.push_back(dispenser_[2*width_cur_ + height_cur_ - 1 - x][id]);
+                        }
+                    }
+
+                    // from mix
+                    if(arch_.modules_[id].type_ == MIXER){
+                        int d = arch_.modules_[id].time_;
+                        if(t >= d + 2){
+                            int mixer_w = arch_.modules_[id].w;
+                            int mixer_h = arch_.modules_[id].h;
+                            for(int dir = 0; dir < mixer_w*mixer_h; dir++){
+                                int x0 = x - dir % mixer_w;
+                                int y0 = y - dir / mixer_w;
+                                if(is_point_inbound(x0, y0) && is_point_inbound(x+mixer_w-1, y+mixer_h-1)){
+                                    expr_vector mix_vec(ctx_);
+                                    for(int m = 0; m < no_of_edges_; m++){
+                                        if(arch_.edges[m].second == id){
+                                            expr_vector appear_before_mix(ctx_);
+                                            expr_vector diappear_on_mix(ctx_);
+                                            for(int k = 0; k < 5; k++){
+                                                int xx = x + dx[k];
+                                                int yy = y + dy[k];
+                                                if(is_point_inbound(xx, yy)){
+                                                    appear_before_mix.push_back(c_[t-d-1][xx][yy][m]);
+                                                }
+                                            }
+                                            for(int xx = 0; xx < width_cur_; xx++){
+                                                for(int yy = 0; yy < height_cur_; yy++){
+                                                    diappear_on_mix.push_back(c_[t-d][xx][yy][m]);
+                                                }
+                                            }
+                                            mix_vec.push_back(mk_or(appear_before_mix));
+                                            mix_vec.push_back(!mk_or(diappear_on_mix));
+                                        }
+                                    }
+
+                                    expr_vector mixing_vec(ctx_);
+                                    for(int xx = 0; xx < mixer_w; xx++){
+                                        for(int yy = 0; yy < mixer_h; yy++){
+                                            for(int t_lag = t-d; t_lag < t; t_lag++){
+                                                mixing_vec.push_back(mixing_[t_lag][xx+x0][yy+y0][id]);
+                                            }
+                                        }
+                                    }
+                                    mix_vec.push_back(mk_and(mixing_vec));
+
+                                    vec.push_back(mk_and(mix_vec));
+                                }
+                            }
+                        }
+                    }
+                    
+                    // from detection
+                    if(arch_.modules_[id].type_ == DETECTOR){
+                        int d = arch_.modules_[id].time_;
+                        if(t >= d + 2){
+                            for(int m = 0; m < no_of_edges_; m++){
+                                if(arch_.edges[m].second == id){
+                                    expr_vector detec_vec(ctx_);
+
+                                    detec_vec.push_back(detector_[x][y][id]);
+                                    detec_vec.push_back(c_[t-d-1][x][y][m]);
+                                    detec_vec.push_back(!c_[t-d][x][y][m]);
+                                    for(int t_lag = t-d; t_lag < t; t_lag++){
+                                        detec_vec.push_back(detecting_[t_lag][id]);
+                                    }
+                                    vec.push_back(mk_and(detec_vec));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if(vec.size() > 0){
+                        solver_.add(implies(c_[t][x][y][i], atmost(vec, 1)));
+                        solver_.add(implies(c_[t][x][y][i], atleast(vec, 1)));
+                    }else{
+                        solver_.add(implies(c_[t][x][y][i], ctx_.bool_val(false)));
+                    }
+
+                }
+            }
+        }
+    }
+
+    // disappearance
+    for(int m = 0; m < no_of_modules_; m++){
+        if(arch_.modules_[m].type_ == SINK){
+            expr_vector mix_vec(ctx_);
+            for(int i = 0; i < no_of_edges_; i++){
+                if(arch_.edges[i].second == m){
+                    for(int x = 0; x < width_cur_; x++){
+                        for(int y = 0; y < height_cur_; y++){
+                            for(int t = 2; t <= time_cur_; t++){
+                                expr_vector vec(ctx_);
+                                // disappear at t;;
+                                for(int k = 0; k < 5; k++){
+                                    int xx = x + dx[k];
+                                    int yy = y + dy[k];
+                                    if(is_point_inbound(xx, yy)){
+                                        vec.push_back(c_[t][xx][yy][i]);
+                                    }
+                                }
+                                expr d_tmp = not(mk_or(vec));
+                                expr disappear = c_[t-1][x][y][i] && d_tmp;
+
+                                expr_vector b_vec(ctx_); // there is a sink at reachable position
+                                if(x == 0){ // (x,y) on left edge
+                                    b_vec.push_back(sink_[perimeter_cur_ - 1 - y]);
+                                }
+                                if(x == width_cur_-1){ // right edge
+                                    b_vec.push_back(sink_[width_cur_ - 1 + y]);
+                                }
+                                if(y == 0){ // top edge
+                                    b_vec.push_back(sink_[x]);
+                                }
+                                if(y == height_cur_-1){ // bottom edge
+                                    b_vec.push_back(sink_[2*width_cur_ + height_cur_ - 1 - x]);
+                                }
+                                if(b_vec.size() > 0){
+                                    solver_.add(implies(disappear, mk_or(b_vec)));
+                                }else{
+                                    solver_.add(implies(disappear, ctx_.bool_val(false)));
+                                }
+                            }
+                        }
+                    }
+
+                    expr_vector disappear_last(ctx_);
+                    for(int x = 0; x < width_cur_; x++){
+                        for(int y = 0; y < height_cur_; y++){
+                            disappear_last.push_back(c_[time_cur_][x][y][i]);
+                        }
+                    }
+                    solver_.add(!mk_or(disappear_last));
+                    break;
+                }
+            }
+        }
+    }
 }
 
 void Solver::add_movement_constraints(){
@@ -685,7 +864,7 @@ void Solver::add_objectives(){
     solver_.add(mk_and(all_droplets_appear_vec));
 
     // detecting op must be done
-    expr_vector detection_triggered_vec(ctx_);
+ /*    expr_vector detection_triggered_vec(ctx_);
     for(auto module: arch_.modules_){
         if(module.type_ == DETECTOR){
             expr_vector v_tmp(ctx_);
@@ -695,20 +874,16 @@ void Solver::add_objectives(){
             detection_triggered_vec.push_back(EQ(v_tmp, module.time_));
         }
     }
-    solver_.add(mk_and(detection_triggered_vec));
+    solver_.add(mk_and(detection_triggered_vec)); */
 }
 
 void Solver::add_fluidic_constraints(){
     for(int i = 0; i < no_of_edges_; i++){
-        for(int t = 1; t <= time_cur_; t++){
+        for(int t = 1; t < time_cur_; t++){
             for(int x = 0; x < width_cur_; x++){
                 for(int y = 0; y < height_cur_; y++){
                     expr a = c_[t][x][y][i];
 
-                    // (1): for any droplet^t_i, there should be no other droplet nearb at time t 
-                    expr_vector v1_tmp(ctx_);
-                    // (2): ...., also no droplet at time t+1
-                    expr_vector v2_tmp(ctx_);
                     for(int x_new = x-1; x_new <= x+1; x_new++){
                         for(int y_new = y-1; y_new <= y+1; y_new++){
                             if(is_point_inbound(x_new, y_new)){
@@ -716,21 +891,34 @@ void Solver::add_fluidic_constraints(){
                                     if(j == i){
                                         continue;
                                     }
-                                    v1_tmp.push_back(c_[t][x_new][y_new][j]);
-                                    if(t < time_cur_){
-                                        v2_tmp.push_back(c_[t+1][x_new][y_new][j]);
+                                    expr a = c_[t][x][y][i] && c_[t][x_new][y_new][j];
+                                    // (1): for any droplet^t_i, if there is another droplet nearb at time t 
+                                    // they should be mixed together at time t+1
+                                    expr_vector c1_vec(ctx_);
+                                    for(int xx = 0; xx < width_cur_; xx++){
+                                        for(int yy = 0; yy < height_cur_; yy++){
+                                            c1_vec.push_back(c_[t+1][xx][yy][i]);
+                                            c1_vec.push_back(c_[t+1][xx][yy][j]);
+                                        }
+                                    }
+                                    solver_.add(implies(a, !mk_or(c1_vec)));
+                                    
+                                    if(t < time_cur_-1){
+                                        expr b = c_[t][x][y][i] && c_[t+1][x_new][y_new][j];
+                                        // (2): for any droplet^t_i, if there is another droplet nearb at time t+1
+                                        // droplet^(t+1)_i mixed with droplet^(t+2)_j
+                                        expr_vector c2_vec(ctx_);
+                                        for(int xx = 0; xx < width_cur_; xx++){
+                                            for(int yy = 0; yy < height_cur_; yy++){
+                                                c2_vec.push_back(c_[t+1][xx][yy][i]);
+                                                c2_vec.push_back(c_[t+2][xx][yy][j]);
+                                            }
+                                        }
+                                        solver_.add(implies(b, !mk_or(c2_vec)));
                                     }
                                 }
                             }
                         }
-                    }
-                    if(t < time_cur_){
-                        expr v1 = mk_or(v1_tmp);
-                        expr v2 = mk_or(v2_tmp);
-                        solver_.add(implies(a, !v1 && !v2));
-                    }else{
-                        expr v1 = mk_or(v1_tmp);
-                        solver_.add(implies(a, !v1));
                     }
                 }
             }
@@ -741,8 +929,9 @@ void Solver::add_fluidic_constraints(){
 void Solver::add_constraints(){
     add_consistency_constraints();
     add_placement_constraints();
-    add_movement_constraints();
-    add_operations();
+    // add_movement_constraints();
+    // add_operations();
+    add_movement();
     add_objectives();
     add_fluidic_constraints();
 }

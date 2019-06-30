@@ -2,7 +2,7 @@
 // label (param1, param2, param3, ...)
 DAGNAME (Tiny Dag)
 NODE (1, DISPENSE, tris-hcl, 10, DIS1) // (id, module_type, fluid_type, volume, label)
-NODE (2, DETECT, 3, 1, DET1) // (id, type, drops, time, label)
+NODE (2, DETECT, 3, 2, DET1) // (id, type, drops, time, label)
 NODE (3, OUTPUT, output, OUT1) // (id, type, name, label)
 EDGE (1, 2)
 EDGE (2, 3)
