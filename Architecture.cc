@@ -135,8 +135,8 @@ void Architecture::build_from_file(const std::string &filename){
 void Architecture::print_to_graph(const string &filename){
     ofstream out_file(filename);
     out_file << "graph \"" << label_ << "\" {\n";
-    for(auto node: nodes_){
-        out_file << node.id_ << " [label=\"" << node.label_ << "\"]\n";
+    for(auto m: nodes_){
+        out_file << m.id_ << " [label=\"" << m.label_ << "\"]\n";
     }
     for(auto e: edges_){
         out_file << e.first << " -- " << e.second << endl;

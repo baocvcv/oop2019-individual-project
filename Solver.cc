@@ -481,6 +481,26 @@ void Solver::add_movement(){
                                     }
                                     mix_vec.push_back(mk_and(mixing_vec));
 
+                                    expr_vector d_vec(ctx_);
+                                    for(int m = 0; m < no_of_edges_; m++){
+                                        if(arch_.edges_[m].first == id && m != i){ // is output of mixing op
+                                            expr_vector appear_at_t(ctx_);
+                                            for(int x_new = x0; x_new < x0+mixer_w; x_new++){
+                                                for(int y_new = y0; y_new < y0+mixer_h; y_new++){
+                                                    appear_at_t.push_back(c_[t][x_new][y_new][m]);
+                                                }
+                                            }
+                                            expr_vector no_before_t(ctx_);
+                                            for(int x_new = 0; x_new < width_cur_; x_new++){
+                                                for(int y_new = 0; y_new < height_cur_; y_new++){
+                                                    no_before_t.push_back(c_[t-1][x_new][y_new][m]);
+                                                }
+                                            }
+                                            d_vec.push_back(mk_or(appear_at_t) && !mk_or(no_before_t));
+                                        }
+                                    }
+                                    mix_vec.push_back(mk_and(d_vec));
+
                                     vec.push_back(mk_and(mix_vec));
                                 }
                             }
@@ -577,6 +597,114 @@ void Solver::add_movement(){
     }
 }
 
+
+
+void Solver::add_objectives(){
+    // all droplets have to be present for at least one step
+    expr_vector all_droplets_appear_vec(ctx_);
+    for(int i = 0; i < no_of_edges_; i++){
+        expr_vector v_tmp(ctx_);
+        for(int t = 1; t <= time_cur_; t++){
+            for(int x = 0; x < width_cur_; x++){
+                for(int y = 0; y < height_cur_; y++){
+                        v_tmp.push_back(c_[t][x][y][i]);
+                }
+            }
+        }
+        all_droplets_appear_vec.push_back(mk_or(v_tmp));
+    }
+    solver_.add(mk_and(all_droplets_appear_vec));
+
+    // no droplet should appear at time_limit
+    // TODO: add condition for OUTPUT op to happen
+
+  /*   expr_vector all_droplets_disappear_vec(ctx_);
+    for(int i = 0; i < no_of_edges_; i++){
+        int id_module = arch_.edges_[i].second;
+        if(arch_.nodes_[id_module].type_ == SINK){
+            for(int x = 0; x < width_cur_; x++){
+                for(int y = 0; y < height_cur_; y++){
+                    all_droplets_disappear_vec.push_back(c_[time_cur_][x][y][i]);
+                }
+            }
+
+        }
+    }
+    solver_.add(!mk_or(all_droplets_disappear_vec)); */
+
+    // detecting op must be done
+ /*    expr_vector detection_triggered_vec(ctx_);
+    for(auto module: arch_.modules_){
+        if(module.type_ == DETECTOR){
+            expr_vector v_tmp(ctx_);
+            for(int t = 1; t <= time_cur_; t++){
+                v_tmp.push_back(detecting_[t][module.id_]);
+            }
+            detection_triggered_vec.push_back(EQ(v_tmp, module.time_));
+        }
+    }
+    solver_.add(mk_and(detection_triggered_vec)); */
+}
+
+void Solver::add_fluidic_constraints(){
+    for(int i = 0; i < no_of_edges_; i++){
+        for(int t = 1; t < time_cur_; t++){
+            for(int x = 0; x < width_cur_; x++){
+                for(int y = 0; y < height_cur_; y++){
+                    expr a = c_[t][x][y][i];
+
+                    for(int x_new = x-1; x_new <= x+1; x_new++){
+                        for(int y_new = y-1; y_new <= y+1; y_new++){
+                            if(is_point_inbound(x_new, y_new)){
+                                for(int j = 0; j < no_of_edges_; j++){
+                                    if(j == i){
+                                        continue;
+                                    }
+                                    expr a = c_[t][x][y][i] && c_[t][x_new][y_new][j];
+                                    // (1): for any droplet^t_i, if there is another droplet nearb at time t 
+                                    // they should be mixed together at time t+1
+                                    expr_vector c1_vec(ctx_);
+                                    for(int xx = 0; xx < width_cur_; xx++){
+                                        for(int yy = 0; yy < height_cur_; yy++){
+                                            c1_vec.push_back(c_[t+1][xx][yy][i]);
+                                            c1_vec.push_back(c_[t+1][xx][yy][j]);
+                                        }
+                                    }
+                                    solver_.add(implies(a, !mk_or(c1_vec)));
+                                    
+                                    if(t < time_cur_-1){
+                                        expr b = c_[t][x][y][i] && c_[t+1][x_new][y_new][j];
+                                        // (2): for any droplet^t_i, if there is another droplet nearb at time t+1
+                                        // droplet^(t+1)_i mixed with droplet^(t+2)_j
+                                        expr_vector c2_vec(ctx_);
+                                        for(int xx = 0; xx < width_cur_; xx++){
+                                            for(int yy = 0; yy < height_cur_; yy++){
+                                                c2_vec.push_back(c_[t+1][xx][yy][i]);
+                                                c2_vec.push_back(c_[t+2][xx][yy][j]);
+                                            }
+                                        }
+                                        solver_.add(implies(b, !mk_or(c2_vec)));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void Solver::add_constraints(){
+    add_consistency_constraints();
+    add_placement_constraints();
+    // add_movement_constraints();
+    // add_operations();
+    add_movement();
+    add_objectives();
+    add_fluidic_constraints();
+}
+
 void Solver::add_movement_constraints(){
     for(int t = 1; t <= time_cur_; t++){
         for(int x = 0; x < width_cur_; x++){
@@ -644,6 +772,7 @@ void Solver::add_movement_constraints(){
                         for(unsigned int m = 0; m < arch_.edges_.size(); m++){
                             if(arch_.edges_[m].second == arch_.nodes_[id_detecting].id_){
                                 id_before_detection = arch_.edges_[m].second;
+                                break;
                             }
                         }
                         if(id_before_detection == -1){
@@ -661,65 +790,6 @@ void Solver::add_movement_constraints(){
             }
         }
     }
-}
-
-void Solver::add_fluidic_constraints(){
-    for(int i = 0; i < no_of_edges_; i++){
-        for(int t = 1; t < time_cur_; t++){
-            for(int x = 0; x < width_cur_; x++){
-                for(int y = 0; y < height_cur_; y++){
-                    expr a = c_[t][x][y][i];
-
-                    for(int x_new = x-1; x_new <= x+1; x_new++){
-                        for(int y_new = y-1; y_new <= y+1; y_new++){
-                            if(is_point_inbound(x_new, y_new)){
-                                for(int j = 0; j < no_of_edges_; j++){
-                                    if(j == i){
-                                        continue;
-                                    }
-                                    expr a = c_[t][x][y][i] && c_[t][x_new][y_new][j];
-                                    // (1): for any droplet^t_i, if there is another droplet nearb at time t 
-                                    // they should be mixed together at time t+1
-                                    expr_vector c1_vec(ctx_);
-                                    for(int xx = 0; xx < width_cur_; xx++){
-                                        for(int yy = 0; yy < height_cur_; yy++){
-                                            c1_vec.push_back(c_[t+1][xx][yy][i]);
-                                            c1_vec.push_back(c_[t+1][xx][yy][j]);
-                                        }
-                                    }
-                                    solver_.add(implies(a, !mk_or(c1_vec)));
-                                    
-                                    if(t < time_cur_-1){
-                                        expr b = c_[t][x][y][i] && c_[t+1][x_new][y_new][j];
-                                        // (2): for any droplet^t_i, if there is another droplet nearb at time t+1
-                                        // droplet^(t+1)_i mixed with droplet^(t+2)_j
-                                        expr_vector c2_vec(ctx_);
-                                        for(int xx = 0; xx < width_cur_; xx++){
-                                            for(int yy = 0; yy < height_cur_; yy++){
-                                                c2_vec.push_back(c_[t+1][xx][yy][i]);
-                                                c2_vec.push_back(c_[t+2][xx][yy][j]);
-                                            }
-                                        }
-                                        solver_.add(implies(b, !mk_or(c2_vec)));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-void Solver::add_constraints(){
-    add_consistency_constraints();
-    add_placement_constraints();
-    // add_movement_constraints();
-    // add_operations();
-    add_movement();
-    add_objectives();
-    add_fluidic_constraints();
 }
 
 void Solver::add_operations(){
@@ -806,7 +876,27 @@ void Solver::add_operations(){
                             }
                             c_vec.push_back(mk_and(v_tmp));
 
-                            constraint_vec.push_back(implies(condition1 && condition2, mk_and(result1_vec) && mk_or(c_vec)));
+                            // droplets from the same mixing operation should also appear
+                            expr_vector d_vec(ctx_);
+                            for(int m = 0; m < no_of_edges_; m++){
+                                if(arch_.edges_[m].first == module.id_ && m != id_after_mix){ // is output of mixing op
+                                    expr_vector appear_at_t(ctx_);
+                                    for(int x_new = x0; x_new < x0+w; x_new++){
+                                        for(int y_new = y0; y_new < y0+h; y_new++){
+                                            appear_at_t.push_back(c_[t][x_new][y_new][m]);
+                                        }
+                                    }
+                                    expr_vector no_before_t(ctx_);
+                                    for(int x_new = 0; x_new < width_cur_; x_new++){
+                                        for(int y_new = 0; y_new < height_cur_; y_new++){
+                                            no_before_t.push_back(c_[t-1][x_new][y_new][m]);
+                                        }
+                                    }
+                                    d_vec.push_back(mk_or(appear_at_t) && !mk_or(no_before_t));
+                                }
+                            }
+
+                            constraint_vec.push_back(implies(condition1 && condition2, mk_and(result1_vec) && mk_or(c_vec) && mk_and(d_vec)));
                         }
                     }
                 }
@@ -913,51 +1003,4 @@ void Solver::add_operations(){
         }
     }
     solver_.add(mk_and(constraint_vec));
-}
-
-void Solver::add_objectives(){
-    // all droplets have to be present for at least one step
-    expr_vector all_droplets_appear_vec(ctx_);
-    for(int i = 0; i < no_of_edges_; i++){
-        expr_vector v_tmp(ctx_);
-        for(int t = 1; t <= time_cur_; t++){
-            for(int x = 0; x < width_cur_; x++){
-                for(int y = 0; y < height_cur_; y++){
-                        v_tmp.push_back(c_[t][x][y][i]);
-                }
-            }
-        }
-        all_droplets_appear_vec.push_back(mk_or(v_tmp));
-    }
-    solver_.add(mk_and(all_droplets_appear_vec));
-
-    // no droplet should appear at time_limit
-    // TODO: add condition for OUTPUT op to happen
-
-  /*   expr_vector all_droplets_disappear_vec(ctx_);
-    for(int i = 0; i < no_of_edges_; i++){
-        int id_module = arch_.edges_[i].second;
-        if(arch_.nodes_[id_module].type_ == SINK){
-            for(int x = 0; x < width_cur_; x++){
-                for(int y = 0; y < height_cur_; y++){
-                    all_droplets_disappear_vec.push_back(c_[time_cur_][x][y][i]);
-                }
-            }
-
-        }
-    }
-    solver_.add(!mk_or(all_droplets_disappear_vec)); */
-
-    // detecting op must be done
- /*    expr_vector detection_triggered_vec(ctx_);
-    for(auto module: arch_.modules_){
-        if(module.type_ == DETECTOR){
-            expr_vector v_tmp(ctx_);
-            for(int t = 1; t <= time_cur_; t++){
-                v_tmp.push_back(detecting_[t][module.id_]);
-            }
-            detection_triggered_vec.push_back(EQ(v_tmp, module.time_));
-        }
-    }
-    solver_.add(mk_and(detection_triggered_vec)); */
 }
