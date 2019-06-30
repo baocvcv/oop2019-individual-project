@@ -1,0 +1,9 @@
+graph "Tiny Dag" {
+0 [label="DIS1 0"]
+3 [label="DIS1 3"]
+1 [label="DET1 1"]
+2 [label="OUT1 2"]
+0 -- 1
+1 -- 2
+3 -- 2
+}

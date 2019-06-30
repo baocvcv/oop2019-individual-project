@@ -11,7 +11,9 @@ public:
     std::vector<std::pair<int, int> > edges;
     std::vector<std::vector<int> > forward_edges_;
     std::vector<std::vector<int> > backward_edges_;
-    std::vector<Module> modules_;
+    std::vector<Node> nodes_;
+    std::map<std::string, Module> modules_;
+
     int width_limit_;
     int height_limit_;
     int time_limit_;
