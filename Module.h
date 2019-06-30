@@ -12,12 +12,6 @@ enum Type {
     DETECTOR
 };
 
-struct Node{
-    Type type_;
-    int id_;
-    std::string label_;
-};
-
 struct Module {
     int id_;
     Type type_;

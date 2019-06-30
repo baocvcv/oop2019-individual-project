@@ -1,0 +1,9 @@
+DAGNAME (Tiny Dag)
+NODE (1, DISPENSE, tris-hcl, 10, DIS1)
+NODE (2, OUTPUT, output, OUT1)
+EDGE (1, 2)
+
+TIME (3)
+SIZE (2,2)
+MOD (DIS1, 1)
+MOD (OUT1, 1)

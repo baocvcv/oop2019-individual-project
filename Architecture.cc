@@ -34,7 +34,7 @@ void Architecture::build_from_file(const std::string &filename){
     // erase previous data
     num_sink_ = num_dispenser_ = 0;
     for(auto edges: forward_edges_){
-        edges.clear();
+        edges_.clear();
     }
     forward_edges_.clear();
     for(auto edges: backward_edges_){
@@ -63,7 +63,7 @@ void Architecture::build_from_file(const std::string &filename){
         }else if(type == "EDGE"){
             int u = stoi(params[0]);
             int v = stoi(params[1]);
-            edges.push_back(make_pair(u-1, v-1));
+            edges_.push_back(make_pair(u-1, v-1));
         }else if(type == "NODE"){
             Module m;
             m.id_ = stoi(params[0]) - 1;
@@ -94,7 +94,10 @@ void Architecture::build_from_file(const std::string &filename){
             }else{
                 cout << "Module type not yet supported!" << endl;
             }
-            modules_.push_back(m);
+            nodes_.push_back(m);
+            if(modules_.count(m.label_) == 0){
+                modules_[m.label_] = m;
+            }
         }else if(type == "TIME"){
             time_limit_ = stoi(params[0]);
         }else if(type == "SIZE"){
@@ -102,22 +105,16 @@ void Architecture::build_from_file(const std::string &filename){
             height_limit_ = stoi(params[1]);
         }else if(type == "MOD"){
             string label = params[0];
-            vector<Module>::iterator it;
-            for(it = modules_.begin(); it != modules_.end(); it++){
-                if(it->label_ == label){
-                    break;
-                }
-            }
-            switch(it->type_){
+            switch(modules_[label].type_){
                 case NONE:
                     break;
                 case SINK:
                 case DISPENSER:
-                    it->desired_amount_ = stoi(params[1]);
+                    modules_[label].desired_amount_ = stoi(params[1]);
                     break;
                 case MIXER:
-                    it->w = stoi(params[1]);
-                    it->h = stoi(params[2]);
+                    modules_[label].w = stoi(params[1]);
+                    modules_[label].h = stoi(params[2]);
                     break;
                 case DETECTOR:
                     break;
@@ -127,9 +124,9 @@ void Architecture::build_from_file(const std::string &filename){
     in_file.close();
 
     // prepare edge lists
-    forward_edges_.assign(modules_.size(), vector<int>());
-    backward_edges_.assign(modules_.size(), vector<int>());
-    for(auto edge: edges){
+    forward_edges_.assign(nodes_.size(), vector<int>());
+    backward_edges_.assign(nodes_.size(), vector<int>());
+    for(auto edge: edges_){
         forward_edges_[edge.first].push_back(edge.second);
         backward_edges_[edge.second].push_back(edge.first);
     }
@@ -138,10 +135,10 @@ void Architecture::build_from_file(const std::string &filename){
 void Architecture::print_to_graph(const string &filename){
     ofstream out_file(filename);
     out_file << "graph \"" << label_ << "\" {\n";
-    for(auto m: modules_){
-        out_file << m.id_ << " [label=\"" << m.label_ << "\"]\n";
+    for(auto node: nodes_){
+        out_file << node.id_ << " [label=\"" << node.label_ << "\"]\n";
     }
-    for(auto e: edges){
+    for(auto e: edges_){
         out_file << e.first << " -- " << e.second << endl;
     }
     out_file << "}" << endl;

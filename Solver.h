@@ -8,6 +8,7 @@
 #include <iostream>
 
 class Solver {
+private:
     // c^t_(x,y,id)
     // c_ used for droplets only
     // no of droplets = no of edges
@@ -32,6 +33,7 @@ class Solver {
     int height_limit_;
     int time_limit_;
     int no_of_modules_;
+    int no_of_nodes_;
     int no_of_edges_;
 
     int width_cur_;
@@ -41,7 +43,7 @@ class Solver {
     z3::check_result result_;
     z3::model model_;
 
-    const Architecture& arch_;
+    Architecture& arch_;
     z3::context& ctx_;
 
     void init(int width, int height, int time);
@@ -57,7 +59,7 @@ class Solver {
     bool is_point_inbound(int x, int y) { return (x >= 0) && (x < width_cur_) && (y >= 0) && (y < height_cur_); }
 
 public:
-    Solver(const Architecture& arch, z3::context& c);
+    Solver(Architecture& arch, z3::context& c);
 
     bool solve();
     bool solve(int width, int height, int time);
