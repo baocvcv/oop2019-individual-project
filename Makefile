@@ -22,5 +22,4 @@ test: test.o
 clean:
 	rm *.o
 	rm main
-	rm test
 	rm debug

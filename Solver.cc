@@ -26,7 +26,7 @@ bool Solver::solve(){
     try {
         for(int width = 2; width <= width_limit_; width++){
             for(int height = 2; height <= height_limit_; height++){
-                for(int time = 1; time <= time_limit_; time++){
+                for(int time = 2; time <= time_limit_; time++){
                     init(width, height, time);
                     add_constraints();
 
@@ -82,7 +82,7 @@ void Solver::print_solution(ostream& out){ // TODO: not fixed
     }
 
     expr TRUE = ctx_.bool_val(true);
-// TODO: fix this 
+    // TODO: fix this 
     out << "Dispenser position(s): " << endl;
     for(auto pair: arch_.modules_){
         Module module = pair.second;
@@ -155,6 +155,103 @@ void Solver::print_solution(ostream& out){ // TODO: not fixed
         out << endl;
     }
 }
+
+vector<vector<vector<int>>> Solver::get_grid(){
+    expr TRUE = ctx_.bool_val(true);
+    vector<vector<vector<int>>> res;
+    res.resize(time_cur_+1);
+    for(int t = 0; t <= time_cur_; t++){
+        res[t].resize(height_cur_);
+        for(int y = 0; y < height_cur_; y++){
+            for(int x = 0; x < width_cur_; x++){
+                bool flag = false;
+                for(auto module: arch_.nodes_){
+                    if(module.type_ == DETECTOR){
+                        int detector_id = arch_.modules_[module.label_].id_;
+                        if(eq(model_.eval(detector_[x][y][detector_id]), TRUE) && eq(model_.eval(detecting_[t][module.id_]), TRUE)){
+                            res[t][y].push_back(-1);
+                            flag = true;
+                            break;
+                        }
+                    }else if(module.type_ == MIXER){
+                        if(eq(model_.eval(mixing_[t][x][y][module.id_]), TRUE)){
+                            res[t][y].push_back(-2);
+                            flag = true;
+                            break;
+                        }
+                    }
+                }
+                for(int i = 0; i < no_of_edges_; i++){
+                    if(eq(model_.eval(c_[t][x][y][i]), TRUE)){
+                        res[t][y].push_back(i);
+                        flag = true;
+                        break;
+                    }
+                }
+                if(!flag)
+                    res[t][y].push_back(-3);
+            }
+        }
+    }
+    return res;
+}
+
+std::vector<Node> Solver::get_sink_dispenser_pos(){
+    expr TRUE = ctx_.bool_val(true);
+    vector<Node> res;
+    for(int p = 0; p < perimeter_cur_; p++){
+        Node node;
+        bool flag = false;
+        if(eq(model_.eval(sink_[p]), TRUE)){
+            node.type_ = 1;
+            node.label_ = "OUT1";
+            flag = true;
+        }else{
+            for(auto pair: arch_.modules_){
+                Module m = pair.second;
+                if(m.type_ == DISPENSER){
+                    if(eq(model_.eval(dispenser_[p][m.id_]), TRUE)){
+                        node.type_ = 2;
+                        node.label_ = m.label_;
+                        flag = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if(!flag){
+            node.type_ = 0;
+            // node.label_ = "";
+        }
+        res.push_back(node);
+    }
+
+    return res;
+}
+
+std::vector<std::vector<std::pair<bool, std::string>>> Solver::get_detector_pos(){
+    expr TRUE = ctx_.bool_val(true);
+    vector<vector<pair<bool, string>>> res;
+    res.resize(height_cur_);
+    for(int y = 0; y < height_cur_; y++){
+        res[y].resize(width_cur_, make_pair(false, ""));
+    }
+
+    for(auto pair: arch_.modules_){
+        Module m = pair.second;
+        if(m.type_ == DETECTOR){
+            for(int x = 0; x < width_cur_; x++){
+                for(int y = 0; y < height_cur_; y++){
+                    if(eq(model_.eval(detector_[x][y][m.id_]), TRUE)){
+                        res[y][x] = make_pair(true, m.label_);
+                    }
+                }
+            }
+        }
+    }
+    return res;
+}
+
 
 void Solver::init(int width, int height, int time){
     // init variables

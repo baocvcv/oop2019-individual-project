@@ -2,10 +2,16 @@
 
 #include "z3++.h"
 #include "Architecture.h"
+
 #include <vector>
 #include <string>
 #include <fstream>
 #include <iostream>
+
+struct Node {
+    int type_; // 0 - empty, 1 - sink, 2 - dispenser
+    std::string label_;
+};
 
 class Solver {
 private:
@@ -71,6 +77,15 @@ public:
     void print_solution(std::ostream& out = std::cout);
     void save_solver(std::string filename);
     void save_solution(std::string filename);
+
+   // return matrix[time][m][n]
+    std::vector<std::vector<std::vector<int>>> get_grid(); 
+
+    // return dispensers[p] (pos, label)
+    std::vector<Node> get_sink_dispenser_pos();
+
+    // return detectors[x][y] (flag, label)
+    std::vector<std::vector<std::pair<bool, std::string>>> get_detector_pos();
 };
 
 inline void Solver::print_solver(std::ostream& out){

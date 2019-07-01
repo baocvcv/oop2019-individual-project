@@ -16,6 +16,11 @@ Architecture::Architecture() {
     num_detector_ = 0;
 }
 
+Architecture::Architecture(const string& filename){
+    build_from_file(filename);
+    print_to_graph(filename);
+}
+
 vector<string> split(string s, char c){
     vector<string> res;
     while(s.find(c) != string::npos){
@@ -30,7 +35,7 @@ vector<string> split(string s, char c){
     return res;
 }
 
-void Architecture::build_from_file(const std::string &filename){
+void Architecture::build_from_file(const string &filename){
     // erase previous data
     num_sink_ = num_dispenser_ = 0;
     for(auto edges: forward_edges_){
@@ -133,7 +138,7 @@ void Architecture::build_from_file(const std::string &filename){
 }
 
 void Architecture::print_to_graph(const string &filename){
-    ofstream out_file(filename);
+    ofstream out_file(filename+".dot");
     out_file << "graph \"" << label_ << "\" {\n";
     for(auto m: nodes_){
         out_file << m.id_ << " [label=\"" << m.label_ << "\"]\n";
@@ -143,4 +148,8 @@ void Architecture::print_to_graph(const string &filename){
     }
     out_file << "}" << endl;
     out_file.close();
+
+    char cmd[200];
+    sprintf(cmd, "dot -Tpng -o %s %s", (filename+".png").c_str(), (filename+".dot").c_str());
+    system(cmd);
 }

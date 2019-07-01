@@ -25,6 +25,7 @@ public:
 
     // read in the file and subtract id by 1 to make it start from 0
     Architecture();
+    Architecture(const std::string& filename);
     void build_from_file(const std::string &filename);
     void print_to_graph(const std::string &filename);
 
