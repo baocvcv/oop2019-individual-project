@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <cstdio>
+#include <chrono>
 
 using namespace std;
 using namespace z3;
@@ -24,23 +25,23 @@ Solver::Solver(Architecture& arch, z3::context& c): arch_(arch), ctx_(c), solver
 
 bool Solver::solve(){
     try {
-        for(int width = 2; width <= width_limit_; width++){
-            for(int height = 2; height <= height_limit_; height++){
-                for(int time = 2; time <= time_limit_; time++){
+        for(int width = 3; width <= width_limit_; width++){
+            for(int height = 3; height <= height_limit_; height++){
+                for(int time = 5; time <= time_limit_; time++){
                     init(width, height, time);
                     add_constraints();
 
+                    auto before = chrono::high_resolution_clock::now();
                     result_ = solver_.check();
+                    auto after = chrono::high_resolution_clock::now();
+                    auto time_used = chrono::duration_cast<chrono::milliseconds>(after - before).count();
                     if(result_ == sat){
                         model_ = solver_.get_model();
-                        cout << "Satisfiable" << endl;
-                        cout << "Printing sat constraints to file" << endl;
-                        // print model
-
-
+                        cout << "Sat** - (w=" << width << ", h=" << height << ", t=" << time << ") " << "--Used " << time_used << "ms" << endl;
+                        cout << endl;
                         return true;
                     }else{
-                        cout << "Unsat - (w=" << width << ", h=" << height << ", t=" << time << ")" << endl;
+                        cout << "Unsat - (w=" << width << ", h=" << height << ", t=" << time << ") " << "--Used " << time_used << "ms" << endl;
                     }
                 }
             }
@@ -57,17 +58,18 @@ bool Solver::solve(int width, int height, int time){
         init(width, height, time);
         add_constraints();
 
+        auto before = chrono::high_resolution_clock::now();
         result_ = solver_.check();
+        auto after = chrono::high_resolution_clock::now();
+        auto time_used = chrono::duration_cast<chrono::milliseconds>(after - before).count();
         if(result_ == sat){
             model_ = solver_.get_model();
-            cout << "Satisfiable" << endl;
-            cout << "Printing sat constraints to file" << endl;
-            // print model
-
+            cout << "Sat - (w=" << width << ", h=" << height << ", t=" << time << ")" << "--used " << time_used << "ms" << endl;
 
             return true;
         }else{
-            cout << "Unsatisfiable" << endl;
+            cout << "Unsat - (w=" << width << ", h=" << height << ", t=" << time << ")" << "--used " << time_used << "ms" << endl;
+            return false;
         }
     } catch(z3::exception e){
         cerr << e.msg() << endl;
@@ -76,13 +78,44 @@ bool Solver::solve(int width, int height, int time){
     return false;
 }
 
-void Solver::print_solution(ostream& out){ // TODO: not fixed
+bool Solver::solve_from(int width0, int height0, int time0){
+    try {
+        for(int width = width0; width <= width0*2; width++){
+            for(int height = height0; height <= height0*2; height++){
+                for(int time = time0; time <= 30; time++){
+                    init(width, height, time);
+                    add_constraints();
+
+                    auto before = chrono::high_resolution_clock::now();
+                    result_ = solver_.check();
+                    auto after = chrono::high_resolution_clock::now();
+                    auto time_used = chrono::duration_cast<chrono::milliseconds>(after - before).count();
+                    if(result_ == sat){
+                        model_ = solver_.get_model();
+                        cout << "Sat** - (w=" << width << ", h=" << height << ", t=" << time << ") " << "--Used " << time_used << "ms" << endl;
+                        cout << endl;
+                        return true;
+                    }else{
+                        cout << "Unsat - (w=" << width << ", h=" << height << ", t=" << time << ") " << "--Used " << time_used << "ms" << endl;
+                    }
+                }
+            }
+        }    
+    } catch(z3::exception e){
+        cerr << e.msg() << endl;
+        return true;
+    }
+    return false;
+}
+
+void Solver::print_solution(ostream& out){ 
     if(result_ == unsat){
         return;
     }
 
+    out << "Solution to " << arch_.label_ << endl;
+
     expr TRUE = ctx_.bool_val(true);
-    // TODO: fix this 
     out << "Dispenser position(s): " << endl;
     for(auto pair: arch_.modules_){
         Module module = pair.second;
@@ -97,9 +130,14 @@ void Solver::print_solution(ostream& out){ // TODO: not fixed
     out << endl;
 
     out << "Sink position(s): " << endl;
-    for(int p = 0; p < perimeter_cur_; p++){
-        if(eq(model_.eval(sink_[p]), TRUE)){
-            out << "Sink" << " at " << p << endl;
+    for(auto pair: arch_.modules_){
+        Module module = pair.second;
+        if(module.type_ == SINK){
+            for(int p = 0; p < perimeter_cur_; p++){
+                if(eq(model_.eval(sink_[p][module.id_]), TRUE)){
+                    out << module.label_ << " at " << p << endl;
+                }
+            }
         }
     }
     out << endl;
@@ -156,6 +194,20 @@ void Solver::print_solution(ostream& out){ // TODO: not fixed
     }
 }
 
+void Solver::save_solution(string filename){
+    cout << "Printing solution to file: " << filename << endl;
+    ofstream out(filename);
+    if(out.is_open()){
+        print_solution(out);
+    }
+    out.close();
+}
+
+void Solver::generate_gif(string filename){
+    cout << "Generating " << filename << endl;
+    
+}
+
 vector<vector<vector<int>>> Solver::get_grid(){
     expr TRUE = ctx_.bool_val(true);
     vector<vector<vector<int>>> res;
@@ -202,20 +254,20 @@ std::vector<Node> Solver::get_sink_dispenser_pos(){
     for(int p = 0; p < perimeter_cur_; p++){
         Node node;
         bool flag = false;
-        if(eq(model_.eval(sink_[p]), TRUE)){
-            node.type_ = 1;
-            node.label_ = "OUT1";
-            flag = true;
-        }else{
-            for(auto pair: arch_.modules_){
-                Module m = pair.second;
-                if(m.type_ == DISPENSER){
-                    if(eq(model_.eval(dispenser_[p][m.id_]), TRUE)){
-                        node.type_ = 2;
-                        node.label_ = m.label_;
-                        flag = true;
-                        break;
-                    }
+        for(auto pair: arch_.modules_){
+            Module m = pair.second;
+            if(m.type_ == DISPENSER){
+                if(eq(model_.eval(dispenser_[p][m.id_]), TRUE)){
+                    node.type_ = 2;
+                    node.label_ = m.label_;
+                    flag = true;
+                    break;
+                }
+            }else if(m.type_ == SINK){
+                if(eq(model_.eval(sink_[p][m.id_]), TRUE)){
+                    node.type_ = 1;
+                    node.label_ = m.label_;
+                    flag = true;
                 }
             }
         }
@@ -312,7 +364,7 @@ void Solver::init(int width, int height, int time){
             mixing_[t][x].resize(height);
             for(int y = 0; y < height; y++){
                 for(int i = 0; i < no_of_nodes_; i++){
-                    char name[50];
+                    char name[80];
                     sprintf(name, "mixing^%d_(%d,%d,%d)", t, x, y, i);
                     mixing_[t][x][y].push_back(ctx_.bool_const(name));
 
@@ -353,7 +405,7 @@ void Solver::init(int width, int height, int time){
     for(int w = 0; w < width; w++){
         detector_[w].resize(height);
         for(int h = 0; h < height; h++){
-            for(int l = 0; l < no_of_nodes_; l++){ // TODO: check
+            for(int l = 0; l < no_of_nodes_; l++){ 
                 char name[50];
                 sprintf(name, "detector_(%d,%d,%d)", w, h, l);
                 detector_[w][h].push_back(ctx_.bool_const(name));
@@ -372,18 +424,17 @@ void Solver::init(int width, int height, int time){
     }
 
     // sink_(p)
-    //sink_.resize(perimeter_cur_);
+    sink_.resize(perimeter_cur_);
     for(int p = 0; p < perimeter_cur_; p++){
-        char name[50];
-        sprintf(name, "sink_(%d)", p);
-        //sink_[p] = ctx_.bool_const(name);
-        sink_.push_back(ctx_.bool_const(name));
+        for(int l = 0; l < no_of_nodes_; l++){
+            char name[50];
+            sprintf(name, "sink_(%d, %d)", p, l);
+            sink_[p].push_back(ctx_.bool_const(name));
+        }
     }
 }
 
 void Solver::add_consistency_constraints(){
-    // expr_vector constraint_vec(ctx_);
-
     // a cell may not be occupied by more than one droplet or mixer i per time step
     for(int t = 1; t <= time_cur_; t++){
         for(int x = 0; x < width_cur_; x++){
@@ -406,10 +457,8 @@ void Solver::add_consistency_constraints(){
             }
         }
     }
-    // solver_.add(mk_and(constraint_vec));
 
     // each droplet i may occur in at most one cell per time step
-    // constraint_vec.resize(0);
     for(int i = 0; i < no_of_edges_; i++){
         for(int t = 1; t <= time_cur_; t++){
             expr_vector v_tmp(ctx_);
@@ -424,22 +473,20 @@ void Solver::add_consistency_constraints(){
     // solver_.add(mk_and(constraint_vec));
 
     // in each position p outside of the grid, there may be at most one dispenser (this applies for all types l) or sink
-    // constraint_vec.resize(0);
     for(int p = 0; p < perimeter_cur_; p++){
         expr_vector v_tmp(ctx_);
-        v_tmp.push_back(sink_[p]);
+        //v_tmp.push_back(sink_[p]);
         for(auto module: arch_.modules_){
             if(module.second.type_ == DISPENSER){
                 v_tmp.push_back(dispenser_[p][module.second.id_]);
+            }else if(module.second.type_ == SINK){
+                v_tmp.push_back(sink_[p][module.second.id_]); // changed
             }
         }
         solver_.add(atmost(v_tmp, 1));
     }
 
-    // solver_.add(mk_and(constraint_vec));
-
     // each cell may be occupied by atmost one detector
-    // constraint_vec.resize(0);
     for(int x = 0; x < width_cur_; x++){
         for(int y = 0; y < height_cur_; y++){
             expr_vector v_tmp(ctx_);
@@ -454,7 +501,6 @@ void Solver::add_consistency_constraints(){
             }
         }
     }
-    // solver_.add(mk_and(constraint_vec));
 }
 
 void Solver::add_placement_constraints(){
@@ -491,7 +537,7 @@ void Solver::add_placement_constraints(){
         }else if(module.second.type_ == SINK){
             expr_vector v_tmp(ctx_);
             for(int p = 0; p < perimeter_cur_; p++){
-                v_tmp.push_back(sink_[p]);
+                v_tmp.push_back(sink_[p][module.second.id_]);
             }
             // constraint_vec.push_back(EQ(v_tmp, module.desired_amount_));
             solver_.add(atleast(v_tmp, module.second.desired_amount_));
@@ -551,13 +597,18 @@ void Solver::add_movement(){
                                         if(arch_.edges_[m].second == id){
                                             expr_vector appear_before_mix(ctx_);
                                             expr_vector diappear_on_mix(ctx_);
-                                            for(int k = 0; k < 5; k++){
-                                                int xx = x + dx[k];
-                                                int yy = y + dy[k];
-                                                if(is_point_inbound(xx, yy)){
-                                                    appear_before_mix.push_back(c_[t-d-1][xx][yy][m]);
-                                                }
-                                            }
+                                            for(int ddx = -1; ddx <= mixer_w; ddx++){
+                                                 for(int ddy = -1; ddy <= mixer_h; ddy++){
+                                                     if((ddx==-1&&ddy==-1) || (ddx==-1&&ddy==mixer_h) || (ddx==mixer_w&&ddy==-1) || (ddx==mixer_w&&ddy==mixer_h)){
+                                                         continue;
+                                                     }
+                                                     int x_new = x0 + ddx;
+                                                     int y_new = y0 + ddy;
+                                                     if(is_point_inbound(x_new, y_new)){
+                                                         appear_before_mix.push_back(c_[t-d-1][x_new][y_new][m]);
+                                                     }
+                                                 }
+                                             }
                                             for(int xx = 0; xx < width_cur_; xx++){
                                                 for(int yy = 0; yy < height_cur_; yy++){
                                                     diappear_on_mix.push_back(c_[t-d][xx][yy][m]);
@@ -641,6 +692,7 @@ void Solver::add_movement(){
     // disappearance
     for(int m = 0; m < no_of_nodes_; m++){
         if(arch_.nodes_[m].type_ == SINK){
+            int id_sink = arch_.modules_[arch_.nodes_[m].label_].id_;
             expr_vector mix_vec(ctx_);
             for(int i = 0; i < no_of_edges_; i++){
                 if(arch_.edges_[i].second == m){
@@ -661,16 +713,16 @@ void Solver::add_movement(){
 
                                 expr_vector b_vec(ctx_); // there is a sink at reachable position
                                 if(x == 0){ // (x,y) on left edge
-                                    b_vec.push_back(sink_[perimeter_cur_ - 1 - y]);
+                                    b_vec.push_back(sink_[perimeter_cur_ - 1 - y][id_sink]);
                                 }
                                 if(x == width_cur_-1){ // right edge
-                                    b_vec.push_back(sink_[width_cur_ - 1 + y]);
+                                    b_vec.push_back(sink_[width_cur_ - 1 + y][id_sink]);
                                 }
                                 if(y == 0){ // top edge
-                                    b_vec.push_back(sink_[x]);
+                                    b_vec.push_back(sink_[x][id_sink]);
                                 }
                                 if(y == height_cur_-1){ // bottom edge
-                                    b_vec.push_back(sink_[2*width_cur_ + height_cur_ - 1 - x]);
+                                    b_vec.push_back(sink_[2*width_cur_ + height_cur_ - 1 - x][id_sink]);
                                 }
                                 if(b_vec.size() > 0){
                                     solver_.add(implies(disappear, mk_or(b_vec)));
@@ -711,9 +763,6 @@ void Solver::add_objectives(){
         all_droplets_appear_vec.push_back(mk_or(v_tmp));
     }
     solver_.add(mk_and(all_droplets_appear_vec));
-
-    // no droplet should appear at time_limit
-    // TODO: add condition for OUTPUT op to happen
 
   /*   expr_vector all_droplets_disappear_vec(ctx_);
     for(int i = 0; i < no_of_edges_; i++){
@@ -795,309 +844,7 @@ void Solver::add_fluidic_constraints(){
 void Solver::add_constraints(){
     add_consistency_constraints();
     add_placement_constraints();
-    // add_movement_constraints();
-    // add_operations();
     add_movement();
     add_objectives();
     add_fluidic_constraints();
-}
-
-void Solver::add_movement_constraints(){
-    for(int t = 1; t <= time_cur_; t++){
-        for(int x = 0; x < width_cur_; x++){
-            for(int y = 0; y < height_cur_; y++){
-                for(int i = 0; i < no_of_edges_; i++){
-                    // a) in t-1 droplet present at same/neighboring cell
-                    expr_vector v1_tmp(ctx_);
-                    for(int k = 0; k < 5; k++){
-                        int x_new = x + dx[k];
-                        int y_new = y + dy[k];
-                        if(is_point_inbound(x_new, y_new)){
-                            v1_tmp.push_back(c_[t-1][x_new][y_new][i]);
-                        }
-                    }
-                    expr e1_tmp(mk_or(v1_tmp));
-
-                    // b) a dispenser of the same type is nearby
-                    expr_vector v2_tmp(ctx_);
-                    int id = arch_.edges_[i].first;
-                    if(arch_.nodes_[id].type_ == DISPENSER){ // if the dispenser is of the same type
-                        int dispenser_id = arch_.modules_[arch_.nodes_[id].label_].id_;
-                        if(x == 0){ // (x,y) on left edge
-                            v2_tmp.push_back(dispenser_[perimeter_cur_ - 1 - y][dispenser_id]);
-                        }
-                        if(x == width_cur_-1){ // right edge
-                            v2_tmp.push_back(dispenser_[width_cur_ - 1 + y][dispenser_id]);
-                        }
-                        if(y == 0){ // top edge
-                            v2_tmp.push_back(dispenser_[x][dispenser_id]);
-                        }
-                        if(y == height_cur_-1){ // bottom edge
-                            v2_tmp.push_back(dispenser_[2*width_cur_ + height_cur_ - 1 - x][dispenser_id]);
-                        }
-                    }
-                    expr e2_tmp(mk_or(v2_tmp));
-
-
-                    // c) result of a mixing op
-                    // (x,y) occupied by mixer at (t-1) &&
-                    // neighboring cells not occupied by droplet i
-                    /* expr_vector v3_tmp(ctx_);
-                    for(int k = 0; k < 5; k++){
-                        int x_new = x + dx[k];
-                        int y_new = y + dy[k];
-                        if(is_point_inbound(x_new, y_new)){
-                            v3_tmp.push_back(c_[t-1][x_new][y_new][i]);
-                        }
-                    }
-                    expr e3_tmp(ctx_);
-                    id = arch_.edges_[i].first;
-                    if(arch_.nodes_[id].type_ == MIXER){
-                        e3_tmp = mixing_[t-1][x][y][id] && !mk_or(v3_tmp);
-                    }else{
-                        e3_tmp = ctx_.bool_val(false);
-                    } */
-                    expr e3_tmp = ctx_.bool_val(false);
-                    
-
-                    // d) result of a detecting op (because id is changed)
-                    // TODO: chekc if this is correct
-                    expr e4_tmp(ctx_);
-                    int id_before_detection = -1;
-                    int id_detecting = arch_.edges_[i].first;
-                    if(arch_.nodes_[id_detecting].type_ == DETECTOR){
-                        for(unsigned int m = 0; m < arch_.edges_.size(); m++){
-                            if(arch_.edges_[m].second == arch_.nodes_[id_detecting].id_){
-                                id_before_detection = arch_.edges_[m].second;
-                                break;
-                            }
-                        }
-                        if(id_before_detection == -1){
-                            e4_tmp = ctx_.bool_val(false);
-                        }else{
-                            int id_detector = arch_.modules_[arch_.nodes_[id_detecting].label_].id_;// TODO: what is this???? 
-                            e4_tmp = c_[t-1][x][y][id_before_detection] && detector_[x][y][id_detector] && detecting_[t-1][id_detecting] && !detecting_[t][id_detecting];
-                        }
-                    }else{
-                        e4_tmp = ctx_.bool_val(false);
-                    }
-
-                    solver_.add(implies(c_[t][x][y][i], e1_tmp || e2_tmp || e3_tmp || e4_tmp));
-                }
-            }
-        }
-    }
-}
-
-void Solver::add_operations(){
-    
-    // mixing operation
-    // TODO: change everything: ids and multiple mix output
-    for(auto module: arch_.nodes_){
-        if(module.type_ == MIXER){
-            expr_vector constraint_vec(ctx_);
-
-            int id_after_mix;
-            for(unsigned int m = 0; m < arch_.edges_.size(); m++){
-                if(arch_.edges_[m].first == module.id_){
-                    id_after_mix = m;
-                    break;
-                }
-            }
-            int d = module.time_;
-            for(int t = d + 2; t <= time_cur_; t++){
-                for(int x = 0; x < width_cur_; x++){
-                    for(int y = 0; y < height_cur_; y++){
-                        int w = arch_.modules_[module.label_].w;
-                        int h = arch_.modules_[module.label_].h;
-                        for(int k = 0; k < w*h; k++){ // TODO: change backc
-                            expr condition1 = c_[t][x][y][id_after_mix]; // output is present
-                            expr_vector condition2_vec(ctx_); // droplet_i is not present at time t-1
-                            for(int l = 0; l < 5; l++){
-                                int x_new = x + dx[l];
-                                int y_new = y + dy[l];
-                                if(is_point_inbound(x_new, y_new)){
-                                    condition2_vec.push_back(!c_[t-1][x_new][y_new][id_after_mix]);
-                                }
-                            } 
-                            expr condition2 = mk_and(condition2_vec); 
-
-                            expr_vector result1_vec(ctx_);
-                            for(auto u: arch_.backward_edges_[module.id_]){
-                                int id_input;
-                                for(unsigned int m = 0; m < arch_.edges_.size(); m++){
-                                    if(arch_.edges_[m].first == u && arch_.edges_[m].second == module.id_){
-                                        id_input = m;
-                                        break;
-                                    }
-                                }
-
-                                // input droplet is present at time t-(d+1)
-                                expr_vector a_vec(ctx_);
-                                // TODO: is this conidition correct?? isn't that the droplet being in the neighborhood of G enough?
-                                for(int k = 0; k < 5; k++){
-                                    int x_new = x + dx[k];
-                                    int y_new = y + dy[k];
-                                    if(is_point_inbound(x_new, y_new)){
-                                        a_vec.push_back(c_[t-d-1][x_new][y_new][id_input]);
-                                    }
-                                }
-                                expr a = mk_or(a_vec);
-
-                                // input-droplet disappear after start of mixing operation
-                                expr_vector b_vec(ctx_);
-                                for(int x_new = 0; x_new < width_cur_; x_new++){
-                                    for(int y_new = 0; y_new < height_cur_; y_new++){
-                                        b_vec.push_back(c_[t-d][x_new][y_new][id_input]);
-                                    }
-                                }
-                                expr b = mk_or(b_vec);
-                                result1_vec.push_back(a && !b);
-                            }
-
-                            // a subgrid is occupied
-                            expr_vector c_vec(ctx_);
-                            // Here I allow the output droplet to be anywhere of the mixer
-                            // TODO: need to check if it is correct
-                            int x0 = x - k % module.w;
-                            int y0 = y - k / module.w;
-                            expr_vector v_tmp(ctx_);
-                            if(is_point_inbound(x0,y0) && is_point_inbound(x0+w-1, y0+w-1)){
-                                for(int x_new = x0; x_new < x0+w; x_new++){
-                                    for(int y_new = y0; y_new < y0+h; y_new++){
-                                        for(int t_lag = t-d; t_lag < t; t_lag++){
-                                            v_tmp.push_back(mixing_[t_lag][x_new][y_new][module.id_]);
-                                        }
-                                    }
-                                }
-                            }
-                            c_vec.push_back(mk_and(v_tmp));
-
-                            // droplets from the same mixing operation should also appear
-                            expr_vector d_vec(ctx_);
-                            for(int m = 0; m < no_of_edges_; m++){
-                                if(arch_.edges_[m].first == module.id_ && m != id_after_mix){ // is output of mixing op
-                                    expr_vector appear_at_t(ctx_);
-                                    for(int x_new = x0; x_new < x0+w; x_new++){
-                                        for(int y_new = y0; y_new < y0+h; y_new++){
-                                            appear_at_t.push_back(c_[t][x_new][y_new][m]);
-                                        }
-                                    }
-                                    expr_vector no_before_t(ctx_);
-                                    for(int x_new = 0; x_new < width_cur_; x_new++){
-                                        for(int y_new = 0; y_new < height_cur_; y_new++){
-                                            no_before_t.push_back(c_[t-1][x_new][y_new][m]);
-                                        }
-                                    }
-                                    d_vec.push_back(mk_or(appear_at_t) && !mk_or(no_before_t));
-                                }
-                            }
-
-                            constraint_vec.push_back(implies(condition1 && condition2, mk_and(result1_vec) && mk_or(c_vec) && mk_and(d_vec)));
-                        }
-                    }
-                }
-            }
-            solver_.add(mk_and(constraint_vec));
-        }
-    }
-
-    // detecting operation
-    expr_vector constraint_vec(ctx_);
-    for(auto module: arch_.nodes_){
-        if(module.type_ == DETECTOR){
-            int id_detecting = module.id_;
-            int id_detector = arch_.modules_[module.label_].id_;
-            int id_droplet;
-            for(unsigned int m = 0; m < arch_.edges_.size(); m++){ // find the droplet being detected
-                if(arch_.edges_[m].second == id_detecting){
-                    id_droplet = m;
-                    break;
-                }
-            }
-            for(int t = 1; t <= time_cur_; t++){
-                for(int x = 0; x < width_cur_; x++){
-                    for(int y = 0; y < height_cur_; y++){
-                        expr a = (detecting_[t][id_detecting] && !detecting_[t-1][id_detecting] && c_[t][x][y][id_droplet]); // a -> b
-
-                        expr_vector v_tmp(ctx_);
-                        for(int t_lag = t; t_lag <= t+module.time_; t++){ // TODO: check if [t, t+d] or [t, t+d)
-                            v_tmp.push_back(c_[t_lag][x][y][id_droplet] && detecting_[t_lag][id_detecting]);
-                        }
-                        expr b = (detector_[x][y][id_detector] && mk_and(v_tmp));
-
-                        constraint_vec.push_back(implies(a, b));
-                    }
-                }
-            }
-        }
-    }
-    solver_.add(mk_and(constraint_vec));
-
-    // Disappearance of droplet
-    constraint_vec.resize(0);
-    for(int t = 1; t <= time_cur_; t++){
-        for(int x = 0; x < width_cur_; x++){
-            for(int y = 0; y < height_cur_; y++){
-                for(int i = 0; i < no_of_edges_; i++){
-                    expr_vector a_vec(ctx_); // droplet_i present at t-1 but not at t
-                    for(int k = 0; k < 5; k++){
-                        int x_new = x + dx[k];
-                        int y_new = y + dy[k];
-                        if(is_point_inbound(x_new, y_new)){
-                            a_vec.push_back(c_[t][x_new][y_new][i]);
-                        }
-                    }
-                    expr a = (c_[t-1][x][y][i] && !mk_or(a_vec));
-
-                    expr_vector b_vec(ctx_); // there is a sink at reachable position
-                    if(x == 0){ // (x,y) on left edge
-                        b_vec.push_back(sink_[perimeter_cur_ - 1 - y]);
-                    }
-                    if(x == width_cur_-1){ // right edge
-                        b_vec.push_back(sink_[width_cur_ - 1 + y]);
-                    }
-                    if(y == 0){ // top edge
-                        b_vec.push_back(sink_[x]);
-                    }
-                    if(y == height_cur_-1){ // bottom edge
-                        b_vec.push_back(sink_[2*width_cur_ + height_cur_ - 1 - x]);
-                    }
-                    expr b = mk_or(b_vec);
-
-                    expr_vector c1_vec(ctx_); // 
-                    expr_vector c2_vec(ctx_); // mixing op in N of (x,y) at t && no mixing op at t-1
-                    expr c(ctx_);
-                    int id_mixing = arch_.edges_[i].second;
-                    if(arch_.nodes_[id_mixing].type_ == MIXER){
-                        for(int k = 0; k < 5; k++){
-                            int x_new = x + dx[k];
-                            int y_new = y + dy[k];
-                            if(is_point_inbound(x_new, y_new)){
-                                expr_vector v_tmp(ctx_);
-                                c1_vec.push_back(mixing_[t][x_new][y_new][id_mixing]);
-                                c2_vec.push_back(mixing_[t-1][x_new][y_new][id_mixing]);
-                            }
-                        }
-                        c = (mk_or(c1_vec) && !mk_or(c2_vec));
-                    }else{
-                        c = ctx_.bool_val(false);
-                    }
-
-                    expr d(ctx_); // a droplet finished being detected
-                    // TODO: not finished
-                    int id_detecting = arch_.edges_[i].second;
-                    int id_detector = arch_.modules_[arch_.nodes_[id_detecting].label_].id_;
-                    if(arch_.nodes_[id_detecting].type_ == DETECTOR){
-                        d = detector_[x][y][id_detector] && detecting_[t-1][id_detecting] && !detecting_[t][id_detecting];
-                    }else{
-                        d = ctx_.bool_val(false);
-                    } 
-
-                    constraint_vec.push_back(implies(a, b || c || d));
-                }
-            }
-        }
-    }
-    solver_.add(mk_and(constraint_vec));
 }

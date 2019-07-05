@@ -29,7 +29,7 @@ private:
     // dispenser_(p,l)
     std::vector<std::vector<z3::expr>> dispenser_;
     // sink(p)
-    std::vector<z3::expr> sink_;
+    std::vector<std::vector<z3::expr>> sink_;
 
     z3::optimize solver_;
     z3::expr no_of_actions_;
@@ -53,14 +53,13 @@ private:
     z3::context& ctx_;
 
     void init(int width, int height, int time);
-    void add_constraints();
+
+    void add_constraints(); // all the constraints
     void add_consistency_constraints();
     void add_placement_constraints();
-    void add_movement_constraints();
-    void add_operations();
+    void add_movement();
     void add_objectives(); 
     void add_fluidic_constraints();
-    void add_movement();
 
     bool is_point_inbound(int x, int y) { return (x >= 0) && (x < width_cur_) && (y >= 0) && (y < height_cur_); }
 
@@ -69,6 +68,7 @@ public:
 
     bool solve();
     bool solve(int width, int height, int time);
+    bool solve_from(int width, int height, int time);
 
     z3::optimize& get_solver() { return solver_; }
     int get_no_of_actions() { return no_of_actions_; }
@@ -77,6 +77,7 @@ public:
     void print_solution(std::ostream& out = std::cout);
     void save_solver(std::string filename);
     void save_solution(std::string filename);
+    void generate_gif(std::string filename);
 
    // return matrix[time][m][n]
     std::vector<std::vector<std::vector<int>>> get_grid(); 

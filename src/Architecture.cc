@@ -137,11 +137,21 @@ void Architecture::build_from_file(const string &filename){
     }
 }
 
-void Architecture::print_to_graph(const string &filename){
+void Architecture::print_to_graph(string filename){
+    filename = filename.substr(0, filename.find_last_of('.'));
+
     ofstream out_file(filename+".dot");
     out_file << "graph \"" << label_ << "\" {\n";
     for(auto m: nodes_){
-        out_file << m.id_ << " [label=\"" << m.label_ << "\"]\n";
+        out_file << m.id_ << " [label=\"" << m.label_ << "\"";
+        if(m.type_ == DISPENSER){
+            out_file << ", shape=box, color=green";
+        }else if(m.type_ == MIXER){
+            out_file << ", shape=polygon, sides=4, skew=.5, color=yellow";
+        }else if(m.type_ == SINK){
+            out_file << ", shape=triangle, color=lightblue";
+        }
+        out_file << "]\n";
     }
     for(auto e: edges_){
         out_file << e.first << " -- " << e.second << endl;

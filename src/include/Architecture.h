@@ -27,6 +27,6 @@ public:
     Architecture();
     Architecture(const std::string& filename);
     void build_from_file(const std::string &filename);
-    void print_to_graph(const std::string &filename);
+    void print_to_graph(std::string filename);
 
 };

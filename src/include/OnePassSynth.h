@@ -36,6 +36,8 @@ public:
     // return detectors[x][y] (flag, label)
     std::vector<std::vector<std::pair<bool, std::string>>> get_detector_pos() { return solver_.get_detector_pos(); }
 
+    Solver get_solver() { return solver_; }
+
 private:
     std::string filename_;
     z3::context ctx_;
